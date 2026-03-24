@@ -1,0 +1,112 @@
+import pygame
+import random
+import sys
+import os
+
+pygame.init()
+pygame.mixer.init()
+
+WIN_W, WIN_H = 700, 500
+window = pygame.display.set_mode((WIN_W, WIN_H))
+pygame.display.set_caption('Дагонялки')
+clock = pygame.time.Clock()
+
+def load_image(fname, size, fallback_color):
+    if not os.path.isfile(fname):
+        print(f'[WARN] {fname} not found – using placeholder')
+        surf = pygame.Surface(size)
+        surf.fill(fallback_color)
+        return surf.convert_alpha()
+    img = pygame.image.load(fname).convert_alpha()
+    if img.get_size() != size:
+        img = pygame.transform.scale(img, size)
+    return img
+
+background = pygame.transform.scale(
+    load_image('Stars.png', (WIN_W, WIN_H), (0, 0, 30)),
+    (WIN_W, WIN_H)
+)
+
+font = pygame.font.Font(None, 36)
+
+class GameSprite(pygame.sprite.Sprite):
+    def __init__(self, x, y, img, w, h, speed=0, col=(255, 0, 0)):
+        super().__init__()
+        self.image = load_image(img, (w, h), col)
+        self.rect  = self.image.get_rect(topleft=(x, y))
+        self.speed = speed
+
+class Player(GameSprite):
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT] and self.rect.x > 5:
+            self.rect.x -= self.speed
+        if keys[pygame.K_RIGHT] and self.rect.x < WIN_W - self.rect.width:
+            self.rect.x += self.speed
+    def fire(self):
+        b = Bullet(self.rect.centerx-23, self.rect.top-46,
+                   'ball-a.svg', 46, 46, 12, col=(255,255,0))
+        bullets.add(b); all_sprites.add(b)
+
+class Bullet(GameSprite):
+    def update(self):
+        self.rect.y -= self.speed
+        if self.rect.bottom < 0:
+            self.kill()
+
+class Enemy(GameSprite):
+    def update(self):
+        self.rect.y += self.speed
+        if self.rect.top > WIN_H:
+            self.kill()
+            global missed
+            missed += 1
+
+all_sprites = pygame.sprite.Group()
+enemies     = pygame.sprite.Group()
+bullets     = pygame.sprite.Group()
+
+player = Player(300, 410, 'ball.png', 50, 50, 5, col=(0,200,0))
+all_sprites.add(player)
+
+for _ in range(6):
+    e = Enemy(random.randint(0, WIN_W-80),
+              random.randint(-200, -50),
+              'crab-a2.svg', 80, 80, 2,
+              col=(200,0,0))
+    enemies.add(e); all_sprites.add(e)
+
+score  = 0
+missed = 0
+
+running = True
+while running:
+    for ev in pygame.event.get():
+        if ev.type == pygame.QUIT:
+            running = False
+        if ev.type == pygame.KEYDOWN and ev.key == pygame.K_SPACE:
+            player.fire()
+
+    player.update()
+    enemies.update()
+    bullets.update()
+
+    for bullet in bullets:
+        hit = pygame.sprite.spritecollide(bullet, enemies, dokill=True)
+        if hit:
+            bullet.kill()
+            score += len(hit)
+
+    window.blit(background, (0, 0))
+    all_sprites.draw(window)
+
+    txt_score = font.render(f'Счёт: {score}', True, (255,215,0))
+    txt_miss  = font.render(f'Пропущено: {missed}', True, (255,80,80))
+    window.blit(txt_score, (10,10))
+    window.blit(txt_miss, (10,40))
+
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
+sys.exit()
